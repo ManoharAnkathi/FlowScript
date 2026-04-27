@@ -7,8 +7,8 @@ from parser import (
     BinaryOp,
     BreakStatement,
     ComparisonOp,
-    ContinueStatement,
     ConstStatement,
+    ContinueStatement,
     Expr,
     ForStatement,
     FunctionDeclarationStatement,
@@ -18,8 +18,8 @@ from parser import (
     NumberLiteral,
     PrintStatement,
     Program,
-    ReturnStatement,
     RepeatStatement,
+    ReturnStatement,
     Statement,
     WhileStatement,
 )
@@ -56,33 +56,9 @@ class SemanticAnalyzer:
 
     def analyze(self, program: Program) -> SemanticResult:
         for statement in program.statements:
-<<<<<<< HEAD
-            if isinstance(statement, LetStatement):
-                self._analyze_let(statement)
-
-            elif isinstance(statement, ConstStatement):
-                self._analyze_const(statement)
-
-            elif isinstance(statement, AssignStatement):
-                self._analyze_assign(statement)
-
-            elif isinstance(statement, PrintStatement):
-                _, value = self._analyze_expr(statement.expr)
-
-                # ✅ FIX: actually print output
-                if value is not None:
-                    print(value)
-                else:
-                    print("Unknown value")
-
-            else:
-                raise SemanticError("Unsupported statement", 1, 1)
-=======
             self._analyze_statement(statement)
->>>>>>> 82fd325 (P1)
 
         warnings = self._collect_warnings()
-
         return SemanticResult(
             symbols=dict(self._symbols),
             known_values=dict(self._known_values),
@@ -193,13 +169,7 @@ class SemanticAnalyzer:
             )
 
         _, constant_value = self._analyze_expr(statement.expr)
-
-        self._symbols[statement.name] = SymbolInfo(
-            statement.line,
-            statement.column,
-            is_const=False,
-        )
-
+        self._symbols[statement.name] = SymbolInfo(statement.line, statement.column, is_const=False)
         self._known_values[statement.name] = constant_value
         self._read_counts.setdefault(statement.name, 0)
 
@@ -213,29 +183,15 @@ class SemanticAnalyzer:
             )
 
         _, constant_value = self._analyze_expr(statement.expr)
-
-        self._symbols[statement.name] = SymbolInfo(
-            statement.line,
-            statement.column,
-            is_const=True,
-        )
-
+        self._symbols[statement.name] = SymbolInfo(statement.line, statement.column, is_const=True)
         self._known_values[statement.name] = constant_value
         self._read_counts.setdefault(statement.name, 0)
 
     def _analyze_assign(self, statement: AssignStatement) -> None:
         if statement.name not in self._symbols:
-<<<<<<< HEAD
-            raise SemanticError(
-                f"Variable '{statement.name}' used before declaration",
-                statement.line,
-                statement.column,
-            )
-=======
-            # FlowScript allows introduction via assignment, e.g. c := a + b.
+            # FlowScript allows variable introduction via assignment.
             self._symbols[statement.name] = SymbolInfo(statement.line, statement.column, is_const=False)
             self._read_counts.setdefault(statement.name, 0)
->>>>>>> 82fd325 (P1)
 
         if self._symbols[statement.name].is_const:
             raise SemanticError(
@@ -273,7 +229,6 @@ class SemanticAnalyzer:
                     expr.column,
                 )
 
-            # ✅ Division by zero check
             if expr.op == "/" and right_value == 0:
                 raise SemanticError(
                     "Division by zero detected",
@@ -281,7 +236,6 @@ class SemanticAnalyzer:
                     expr.column,
                 )
 
-            # If unknown values → propagate None
             if left_value is None or right_value is None:
                 return "number", None
 
@@ -318,11 +272,8 @@ class SemanticAnalyzer:
     def _collect_warnings(self) -> list[str]:
         warnings: list[str] = []
 
-        for name, symbol in sorted(
-            self._symbols.items(), key=lambda item: item[1].declared_line
-        ):
+        for name, symbol in sorted(self._symbols.items(), key=lambda item: item[1].declared_line):
             reads = self._read_counts.get(name, 0)
-
             if reads == 0:
                 kind = "Constant" if symbol.is_const else "Variable"
                 warnings.append(
