@@ -5,13 +5,23 @@ from dataclasses import dataclass
 from parser import (
     AssignStatement,
     BinaryOp,
+    BreakStatement,
+    ComparisonOp,
+    ContinueStatement,
     ConstStatement,
     Expr,
+    ForStatement,
+    FunctionDeclarationStatement,
     Identifier,
+    IfStatement,
     LetStatement,
     NumberLiteral,
     PrintStatement,
     Program,
+    ReturnStatement,
+    RepeatStatement,
+    Statement,
+    WhileStatement,
 )
 
 
@@ -41,9 +51,12 @@ class SemanticAnalyzer:
         self._symbols: dict[str, SymbolInfo] = {}
         self._known_values: dict[str, float | None] = {}
         self._read_counts: dict[str, int] = {}
+        self._loop_depth = 0
+        self._function_depth = 0
 
     def analyze(self, program: Program) -> SemanticResult:
         for statement in program.statements:
+<<<<<<< HEAD
             if isinstance(statement, LetStatement):
                 self._analyze_let(statement)
 
@@ -64,6 +77,9 @@ class SemanticAnalyzer:
 
             else:
                 raise SemanticError("Unsupported statement", 1, 1)
+=======
+            self._analyze_statement(statement)
+>>>>>>> 82fd325 (P1)
 
         warnings = self._collect_warnings()
 
@@ -72,6 +88,100 @@ class SemanticAnalyzer:
             known_values=dict(self._known_values),
             warnings=warnings,
         )
+
+    def _analyze_statement(self, statement: Statement) -> None:
+        if isinstance(statement, LetStatement):
+            self._analyze_let(statement)
+            return
+
+        if isinstance(statement, ConstStatement):
+            self._analyze_const(statement)
+            return
+
+        if isinstance(statement, AssignStatement):
+            self._analyze_assign(statement)
+            return
+
+        if isinstance(statement, PrintStatement):
+            self._analyze_expr(statement.expr)
+            return
+
+        if isinstance(statement, IfStatement):
+            self._analyze_condition(statement.condition)
+            for child in statement.body:
+                self._analyze_statement(child)
+            return
+
+        if isinstance(statement, RepeatStatement):
+            self._analyze_expr(statement.count_expr)
+            self._loop_depth += 1
+            try:
+                for child in statement.body:
+                    self._analyze_statement(child)
+            finally:
+                self._loop_depth -= 1
+            return
+
+        if isinstance(statement, ForStatement):
+            self._analyze_expr(statement.start_expr)
+            self._analyze_expr(statement.end_expr)
+
+            if statement.loop_var not in self._symbols:
+                self._symbols[statement.loop_var] = SymbolInfo(statement.line, statement.column, is_const=False)
+                self._known_values.setdefault(statement.loop_var, None)
+                self._read_counts.setdefault(statement.loop_var, 0)
+            elif self._symbols[statement.loop_var].is_const:
+                raise SemanticError(
+                    f"Loop variable '{statement.loop_var}' cannot be const",
+                    statement.line,
+                    statement.column,
+                )
+
+            self._loop_depth += 1
+            try:
+                for child in statement.body:
+                    self._analyze_statement(child)
+            finally:
+                self._loop_depth -= 1
+            return
+
+        if isinstance(statement, WhileStatement):
+            self._analyze_condition(statement.condition)
+            self._loop_depth += 1
+            try:
+                for child in statement.body:
+                    self._analyze_statement(child)
+            finally:
+                self._loop_depth -= 1
+            return
+
+        if isinstance(statement, FunctionDeclarationStatement):
+            self._function_depth += 1
+            try:
+                for child in statement.body:
+                    self._analyze_statement(child)
+            finally:
+                self._function_depth -= 1
+            return
+
+        if isinstance(statement, ReturnStatement):
+            if self._function_depth <= 0:
+                raise SemanticError("'return' is only allowed inside a function", statement.line, statement.column)
+            if statement.expr is not None:
+                self._analyze_expr(statement.expr)
+            return
+
+        if isinstance(statement, ContinueStatement):
+            if self._loop_depth <= 0:
+                raise SemanticError("'continue' is only allowed inside a loop", statement.line, statement.column)
+            return
+
+        if isinstance(statement, BreakStatement):
+            if self._loop_depth <= 0:
+                raise SemanticError("'break' is only allowed inside a loop", statement.line, statement.column)
+            return
+
+        raise SemanticError("Unsupported statement", 1, 1)
 
     def _analyze_let(self, statement: LetStatement) -> None:
         if statement.name in self._symbols:
@@ -115,11 +225,17 @@ class SemanticAnalyzer:
 
     def _analyze_assign(self, statement: AssignStatement) -> None:
         if statement.name not in self._symbols:
+<<<<<<< HEAD
             raise SemanticError(
                 f"Variable '{statement.name}' used before declaration",
                 statement.line,
                 statement.column,
             )
+=======
+            # FlowScript allows introduction via assignment, e.g. c := a + b.
+            self._symbols[statement.name] = SymbolInfo(statement.line, statement.column, is_const=False)
+            self._read_counts.setdefault(statement.name, 0)
+>>>>>>> 82fd325 (P1)
 
         if self._symbols[statement.name].is_const:
             raise SemanticError(
@@ -188,6 +304,16 @@ class SemanticAnalyzer:
             )
 
         raise SemanticError("Invalid expression", 1, 1)
+
+    def _analyze_condition(self, condition: ComparisonOp) -> None:
+        left_type, _ = self._analyze_expr(condition.left)
+        right_type, _ = self._analyze_expr(condition.right)
+
+        if left_type != "number" or right_type != "number":
+            raise SemanticError("Condition operands must be numeric", condition.line, condition.column)
+
+        if condition.op != ">":
+            raise SemanticError(f"Unsupported condition operator '{condition.op}'", condition.line, condition.column)
 
     def _collect_warnings(self) -> list[str]:
         warnings: list[str] = []

@@ -1,5 +1,0 @@
-@start
-let keep := 1
-let unused := 9
-print => keep
-@end

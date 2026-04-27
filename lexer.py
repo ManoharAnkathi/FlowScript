@@ -24,6 +24,13 @@ KEYWORDS = {
     "let": "LET",
     "const": "CONST",
     "print": "PRINT",
+    "to": "TO",
+    "return": "RETURN",
+    "continue": "CONTINUE",
+    "break": "BREAK",
+    "giveback": "RETURN",
+    "skip": "CONTINUE",
+    "stop": "BREAK",
 }
 
 SINGLE_CHAR_TOKENS = {
@@ -31,6 +38,7 @@ SINGLE_CHAR_TOKENS = {
     "-": "MINUS",
     "*": "STAR",
     "/": "SLASH",
+    ">": "GREATER",
     "(": "LPAREN",
     ")": "RPAREN",
 }
@@ -76,6 +84,56 @@ def _scan_line(line: str, line_no: int) -> Iterator[Token]:
         if line.startswith("@end", i) and _is_token_boundary(line, i + 4):
             yield Token("END", "@end", line_no, col)
             i += 4
+            continue
+
+        if line.startswith("@if", i) and _is_token_boundary(line, i + 3):
+            yield Token("IF", "@if", line_no, col)
+            i += 3
+            continue
+
+        if line.startswith("@endif", i) and _is_token_boundary(line, i + 6):
+            yield Token("ENDIF", "@endif", line_no, col)
+            i += 6
+            continue
+
+        if line.startswith("@repeat", i) and _is_token_boundary(line, i + 7):
+            yield Token("REPEAT", "@repeat", line_no, col)
+            i += 7
+            continue
+
+        if line.startswith("@endrepeat", i) and _is_token_boundary(line, i + 10):
+            yield Token("ENDREPEAT", "@endrepeat", line_no, col)
+            i += 10
+            continue
+
+        if line.startswith("@for", i) and _is_token_boundary(line, i + 4):
+            yield Token("FOR", "@for", line_no, col)
+            i += 4
+            continue
+
+        if line.startswith("@endfor", i) and _is_token_boundary(line, i + 7):
+            yield Token("ENDFOR", "@endfor", line_no, col)
+            i += 7
+            continue
+
+        if line.startswith("@while", i) and _is_token_boundary(line, i + 6):
+            yield Token("WHILE", "@while", line_no, col)
+            i += 6
+            continue
+
+        if line.startswith("@endwhile", i) and _is_token_boundary(line, i + 9):
+            yield Token("ENDWHILE", "@endwhile", line_no, col)
+            i += 9
+            continue
+
+        if line.startswith("@function", i) and _is_token_boundary(line, i + 9):
+            yield Token("FUNCTION", "@function", line_no, col)
+            i += 9
+            continue
+
+        if line.startswith("@endfunction", i) and _is_token_boundary(line, i + 12):
+            yield Token("ENDFUNCTION", "@endfunction", line_no, col)
+            i += 12
             continue
 
         if ch == "@":
