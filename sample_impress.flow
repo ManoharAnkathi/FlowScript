@@ -1,0 +1,7 @@
+@start
+const base := 10
+let height := 5
+let area := (base * height) / 2
+let score := area + 7
+print => score
+@end

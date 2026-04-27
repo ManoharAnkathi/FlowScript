@@ -1,0 +1,6 @@
+@start
+let a := 5
+let b := 10
+let c := (a + b) * 2
+print => c
+@end
