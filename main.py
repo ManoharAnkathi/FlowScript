@@ -215,6 +215,10 @@ def main() -> int:
         print("Error: limit values must be positive integers", file=sys.stderr)
         return 1
 
+    if args.phase == "all" and not args.show_ir and not args.show_optimized_ir:
+        args.show_ir = True
+        args.show_optimized_ir = True
+
     if (args.show_ir or args.show_optimized_ir) and args.phase in {"tokens", "parse"}:
         print("Error: --show-ir requires phase 'semantic' or 'all'", file=sys.stderr)
         return 1
