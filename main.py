@@ -8,10 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from codegen import generate_python
 from ir import IRProgram, build_ir
 from optimizer import optimize_ir
 from lexer import LexerError, Token, tokenize_file
-from parser import ParserError, Program, parse
+from parser import ParserError, Program, parse, Statement
 from semantic import SemanticError, SemanticResult, analyze_program
 
 
@@ -151,6 +152,183 @@ def _print_ir(ir_program: IRProgram, title: str) -> None:
         print(f"{index:>4}: {instruction}")
 
 
+def _print_structured_tokens(file_path: Path, token_limit: int, include_newlines: bool) -> int:
+    """Print tokens in structured format."""
+    print("\n[1] Lexical Analysis")
+    printed = 0
+    total = 0
+
+    for token in _iter_display_tokens(file_path, include_newlines=include_newlines):
+        total += 1
+        if printed < token_limit:
+            # Format: TOKEN_TYPE -> value
+            print(f"  {token.type:<12} -> {token.value:<15}")
+            printed += 1
+
+    if total > token_limit:
+        print(f"  ... ({total - printed} more tokens)")
+
+    return total
+
+
+def _format_statement(stmt: Statement) -> str:
+    """Format AST statement nicely."""
+    from parser import (
+        LetStatement, ConstStatement, AssignStatement, PrintStatement,
+        IfStatement, RepeatStatement, ForStatement, WhileStatement,
+        FunctionDeclarationStatement, ReturnStatement, ContinueStatement, BreakStatement
+    )
+    
+    if isinstance(stmt, LetStatement):
+        return f"LET {stmt.name} := {_format_expr(stmt.expr)}"
+    elif isinstance(stmt, ConstStatement):
+        return f"CONST {stmt.name} := {_format_expr(stmt.expr)}"
+    elif isinstance(stmt, AssignStatement):
+        return f"ASSIGN {stmt.name} := {_format_expr(stmt.expr)}"
+    elif isinstance(stmt, PrintStatement):
+        return f"PRINT => {_format_expr(stmt.expr)}"
+    elif isinstance(stmt, IfStatement):
+        return f"IF {_format_condition(stmt.condition)} THEN ... ENDIF"
+    elif isinstance(stmt, RepeatStatement):
+        return f"REPEAT {_format_expr(stmt.count_expr)} ... ENDREPEAT"
+    elif isinstance(stmt, ForStatement):
+        return f"FOR {stmt.loop_var} := {_format_expr(stmt.start_expr)} TO {_format_expr(stmt.end_expr)} ... ENDFOR"
+    elif isinstance(stmt, WhileStatement):
+        return f"WHILE {_format_condition(stmt.condition)} ... ENDWHILE"
+    elif isinstance(stmt, FunctionDeclarationStatement):
+        return f"FUNCTION {stmt.name} ... ENDFUNCTION"
+    elif isinstance(stmt, ReturnStatement):
+        if stmt.expr:
+            return f"RETURN {_format_expr(stmt.expr)}"
+        else:
+            return "RETURN"
+    elif isinstance(stmt, ContinueStatement):
+        return "CONTINUE"
+    elif isinstance(stmt, BreakStatement):
+        return "BREAK"
+    else:
+        return str(stmt)
+
+
+def _format_expr(expr) -> str:
+    """Format expression nicely."""
+    from parser import NumberLiteral, Identifier, BinaryOp
+    
+    if isinstance(expr, NumberLiteral):
+        return str(expr.value)
+    elif isinstance(expr, Identifier):
+        return expr.name
+    elif isinstance(expr, BinaryOp):
+        left = _format_expr(expr.left)
+        right = _format_expr(expr.right)
+        return f"({left} {expr.op} {right})"
+    else:
+        return str(expr)
+
+
+def _format_condition(cond) -> str:
+    """Format condition nicely."""
+    from parser import ComparisonOp
+    
+    if isinstance(cond, ComparisonOp):
+        left = _format_expr(cond.left)
+        right = _format_expr(cond.right)
+        return f"({left} {cond.op} {right})"
+    else:
+        return str(cond)
+
+
+def _print_structured_ast(program: Program, ast_limit: int) -> None:
+    """Print AST in structured format."""
+    print("\n[2] Syntax Analysis")
+    for index, statement in enumerate(program.statements[:ast_limit], start=1):
+        stmt_str = _format_statement(statement)
+        print(f"  {stmt_str}")
+
+    if len(program.statements) > ast_limit:
+        print(f"  ... ({len(program.statements) - ast_limit} more statements)")
+
+
+def _print_structured_symbols(result: SemanticResult, symbol_limit: int) -> None:
+    """Print symbol table in structured format."""
+    print("\n[3] Semantic Analysis")
+    count = 0
+    for name in sorted(result.symbols.keys()):
+        if count >= symbol_limit:
+            print(f"  ... ({len(result.symbols) - symbol_limit} more symbols)")
+            break
+        
+        location = result.symbols[name]
+        kind = "const" if location.is_const else "var"
+        value = result.known_values.get(name, "unknown")
+        print(f"  {name} -> {kind} (value: {value})")
+        count += 1
+
+
+def _print_structured_ir(ir_program: IRProgram, title_num: int, title_text: str, ir_limit: int = 100) -> None:
+    """Print IR in structured format."""
+    print(f"\n[{title_num}] {title_text}")
+    if not ir_program.instructions:
+        print("  (empty)")
+        return
+
+    for index, instruction in enumerate(ir_program.instructions[:ir_limit], start=1):
+        print(f"  {index:>3}. {instruction}")
+
+    if len(ir_program.instructions) > ir_limit:
+        print(f"  ... ({len(ir_program.instructions) - ir_limit} more instructions)")
+
+
+def _simplify_asm_line(line: str) -> str:
+    """Keep assembly line clean - no simplification needed for variable-based assembly."""
+    if not line.strip():
+        return ""
+    return line
+
+
+def _print_structured_asm(asm_code: str, title_num: int, asm_limit: int = 50) -> None:
+    """Print assembly in structured format with variable names and simplified registers."""
+    print(f"\n[{title_num}] Target Code")
+    if not asm_code:
+        print("  (empty)")
+        return
+
+    lines = asm_code.split("\n")
+    displayed = 0
+    
+    for line in lines:
+        simplified = _simplify_asm_line(line)
+        if simplified:  # Skip empty lines
+            print(f"  {simplified}")
+            displayed += 1
+            if displayed >= asm_limit:
+                break
+
+
+def _print_ir(ir_program: IRProgram, title: str) -> None:
+    print(title)
+    if not ir_program.instructions:
+        print("(empty)")
+        return
+
+    for index, instruction in enumerate(ir_program.instructions, start=1):
+        print(f"{index:>4}: {instruction}")
+
+
+def _print_asm(asm_code: str, title: str, asm_limit: int | None = None) -> None:
+    print(title)
+    if not asm_code:
+        print("(empty)")
+        return
+
+    lines = asm_code.split("\n")
+    for index, line in enumerate(lines, start=1):
+        if asm_limit and index > asm_limit:
+            print(f"... output truncated: showing first {asm_limit} lines")
+            break
+        print(line)
+
+
 def _write_report_file(
     report_file: Path,
     input_file: Path,
@@ -200,6 +378,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--report-file", type=Path, help="Write compile report JSON to this path")
     parser.add_argument("--show-ir", action="store_true", help="Print generated three-address IR")
     parser.add_argument("--show-optimized-ir", action="store_true", help="Print optimized three-address IR")
+    parser.add_argument("--show-asm", action="store_true", help="Print generated x86-64 assembly code")
+    parser.add_argument("--asm-file", type=Path, help="Write assembly code to this file")
+    parser.add_argument("--asm-limit", type=int, default=200, help="Max number of assembly lines to print")
+    parser.add_argument("--structured", action="store_true", help="Use structured output format [1] [2] [3] etc")
     return parser
 
 
@@ -215,12 +397,13 @@ def main() -> int:
         print("Error: limit values must be positive integers", file=sys.stderr)
         return 1
 
-    if args.phase == "all" and not args.show_ir and not args.show_optimized_ir:
+    if args.phase == "all" and not args.show_ir and not args.show_optimized_ir and not args.show_asm:
         args.show_ir = True
         args.show_optimized_ir = True
+        args.show_asm = True
 
-    if (args.show_ir or args.show_optimized_ir) and args.phase in {"tokens", "parse"}:
-        print("Error: --show-ir requires phase 'semantic' or 'all'", file=sys.stderr)
+    if (args.show_ir or args.show_optimized_ir or args.show_asm or args.asm_file) and args.phase in {"tokens", "parse"}:
+        print("Error: --show-ir/--show-asm requires phase 'semantic' or 'all'", file=sys.stderr)
         return 1
 
     metrics: dict[str, PhaseMetrics] = {}
@@ -265,13 +448,23 @@ def main() -> int:
                 warning_count=len(semantic_result.warnings),
             )
 
-            if args.show_ir or args.show_optimized_ir:
+            if args.show_ir or args.show_optimized_ir or args.show_asm or args.asm_file:
                 ir_program = build_ir(program, semantic_result)
                 if args.show_ir:
                     _print_ir(ir_program, "--- INTERMEDIATE CODE (IR) ---")
                 if args.show_optimized_ir:
                     optimized_ir, _ = optimize_ir(ir_program)
                     _print_ir(optimized_ir, "--- OPTIMIZED INTERMEDIATE CODE ---")
+                else:
+                    optimized_ir, _ = optimize_ir(ir_program)
+
+                if args.show_asm or args.asm_file:
+                    asm_code = generate_python(optimized_ir)
+                    if args.show_asm:
+                        _print_asm(asm_code, "--- ASSEMBLY CODE ---", asm_limit=args.asm_limit)
+                    if args.asm_file:
+                        args.asm_file.write_text(asm_code, encoding="utf-8")
+                        print(f"Assembly code written to {args.asm_file}")
 
             if args.profile:
                 _print_profile(metrics)
@@ -283,17 +476,29 @@ def main() -> int:
             return 0
 
         token_start = time.perf_counter()
-        token_count = run_token_phase(file_path, token_limit=args.token_limit, include_newlines=args.include_newlines)
+        
+        if args.structured:
+            # Use structured output format
+            token_count = _print_structured_tokens(file_path, token_limit=args.token_limit, include_newlines=args.include_newlines)
+        else:
+            token_count = run_token_phase(file_path, token_limit=args.token_limit, include_newlines=args.include_newlines)
+        
         token_ms = (time.perf_counter() - token_start) * 1000
         metrics["tokens"] = PhaseMetrics(duration_ms=token_ms, token_count=token_count)
 
         parse_start = time.perf_counter()
-        program = run_parse_phase(file_path, ast_limit=args.ast_limit, show_ast=args.show_ast)
+        program = parse(tokenize_file(file_path))
+        
+        if args.structured:
+            _print_structured_ast(program, ast_limit=args.ast_limit)
+        else:
+            run_parse_phase(file_path, ast_limit=args.ast_limit, show_ast=args.show_ast)
+        
         parse_ms = (time.perf_counter() - parse_start) * 1000
         metrics["parse"] = PhaseMetrics(duration_ms=parse_ms, statement_count=len(program.statements))
 
         sem_start = time.perf_counter()
-        semantic_result = run_semantic_phase(program, symbol_limit=args.symbol_limit, show_symbols=args.show_symbols)
+        semantic_result = analyze_program(program)
         sem_ms = (time.perf_counter() - sem_start) * 1000
         metrics["semantic"] = PhaseMetrics(
             duration_ms=sem_ms,
@@ -301,13 +506,36 @@ def main() -> int:
             warning_count=len(semantic_result.warnings),
         )
 
-        if args.show_ir or args.show_optimized_ir:
+        if args.structured:
+            _print_structured_symbols(semantic_result, symbol_limit=args.symbol_limit)
+        
+        if args.show_ir or args.show_optimized_ir or args.show_asm or args.asm_file:
             ir_program = build_ir(program, semantic_result)
-            if args.show_ir:
+            
+            if args.structured:
+                _print_structured_ir(ir_program, 4, "Intermediate Code")
+            elif args.show_ir:
                 _print_ir(ir_program, "--- INTERMEDIATE CODE (IR) ---")
+            
             if args.show_optimized_ir:
                 optimized_ir, _ = optimize_ir(ir_program)
-                _print_ir(optimized_ir, "--- OPTIMIZED INTERMEDIATE CODE ---")
+                if args.structured:
+                    _print_structured_ir(optimized_ir, 5, "Optimized Code")
+                else:
+                    _print_ir(optimized_ir, "--- OPTIMIZED INTERMEDIATE CODE ---")
+            else:
+                optimized_ir, _ = optimize_ir(ir_program)
+
+            if args.show_asm or args.asm_file or args.structured:
+                asm_code = generate_python(optimized_ir)
+                if args.structured:
+                    _print_structured_asm(asm_code, 6, asm_limit=20)
+                elif args.show_asm:
+                    _print_asm(asm_code, "--- ASSEMBLY CODE ---", asm_limit=args.asm_limit)
+                
+                if args.asm_file:
+                    args.asm_file.write_text(asm_code, encoding="utf-8")
+                    print(f"Assembly code written to {args.asm_file}")
 
         if args.profile:
             _print_profile(metrics)

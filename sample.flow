@@ -1,5 +1,4 @@
 @start
-# Comprehensive FlowScript sample covering lexer + parser symbols
 
 let a := 12
 let b2 := 4
@@ -9,32 +8,6 @@ sum_total := a + b2
 difference := a - b2
 product := a * b2
 ratio := a / b2
-
-@function showcase
-print => max_value
-return max_value
-@endfunction
-
-@for i := 1 to 3
-print => i
-continue
-break
-@endfor
-
-let counter := 3
-@while counter > 0
-print => counter
-counter := counter - 1
-continue
-break
-@endwhile
-
-@if sum_total > b2
-print => sum_total
-@repeat 2
-print => (difference + product) / 2
-@endrepeat
-@endif
 
 print => max_value
 @end

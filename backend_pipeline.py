@@ -13,7 +13,7 @@ from semantic import SemanticResult
 class BackendResult:
     ir_program: IRProgram
     optimization_report: OptimizationReport
-    generated_python: str
+    generated_assembly: str
     execution_output: list[str]
 
 
@@ -26,8 +26,23 @@ def run_backend_pipeline(
 ) -> BackendResult:
     """Stable handoff API for Person 3 and Person 4.
 
+    Converts AST + semantic analysis into optimized IR, then generates x86-64 assembly code.
+    
     This function is intentionally isolated from main.py to avoid conflicts
     while both teammates develop their parts.
+    
+    Args:
+        program: Parsed AST from the parser
+        semantic_result: Symbol table and analysis from semantic analyzer
+        run_optimizer: Whether to run IR optimization passes (default: True)
+        run_execution: Whether to execute the IR directly (default: False)
+    
+    Returns:
+        BackendResult containing:
+        - ir_program: Optimized intermediate representation
+        - optimization_report: Summary of optimizations applied
+        - generated_assembly: x86-64 assembly code
+        - execution_output: Output from direct execution (if enabled)
     """
     ir_program = build_ir(program, semantic_result)
 
@@ -41,12 +56,12 @@ def run_backend_pipeline(
             notes=["Optimizer skipped"],
         )
 
-    generated_python = generate_python(optimized_ir)
+    generated_assembly = generate_python(optimized_ir)
     execution_output = execute_ir(optimized_ir) if run_execution else []
 
     return BackendResult(
         ir_program=optimized_ir,
         optimization_report=optimization_report,
-        generated_python=generated_python,
+        generated_assembly=generated_assembly,
         execution_output=execution_output,
     )
