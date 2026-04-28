@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ir import IRProgram, build_ir
+from optimizer import optimize_ir
 from lexer import LexerError, Token, tokenize_file
 from parser import ParserError, Program, parse
 from semantic import SemanticError, SemanticResult, analyze_program
@@ -140,8 +141,8 @@ def _print_profile(metrics: dict[str, PhaseMetrics]) -> None:
     print(f"total    {total_ms:>9.3f} ms")
 
 
-def _print_ir(ir_program: IRProgram) -> None:
-    print("--- IR ---")
+def _print_ir(ir_program: IRProgram, title: str) -> None:
+    print(title)
     if not ir_program.instructions:
         print("(empty)")
         return
@@ -198,6 +199,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--strict-warnings", action="store_true", help="Treat semantic warnings as errors")
     parser.add_argument("--report-file", type=Path, help="Write compile report JSON to this path")
     parser.add_argument("--show-ir", action="store_true", help="Print generated three-address IR")
+    parser.add_argument("--show-optimized-ir", action="store_true", help="Print optimized three-address IR")
     return parser
 
 
@@ -213,7 +215,7 @@ def main() -> int:
         print("Error: limit values must be positive integers", file=sys.stderr)
         return 1
 
-    if args.show_ir and args.phase in {"tokens", "parse"}:
+    if (args.show_ir or args.show_optimized_ir) and args.phase in {"tokens", "parse"}:
         print("Error: --show-ir requires phase 'semantic' or 'all'", file=sys.stderr)
         return 1
 
@@ -259,9 +261,13 @@ def main() -> int:
                 warning_count=len(semantic_result.warnings),
             )
 
-            if args.show_ir:
+            if args.show_ir or args.show_optimized_ir:
                 ir_program = build_ir(program, semantic_result)
-                _print_ir(ir_program)
+                if args.show_ir:
+                    _print_ir(ir_program, "--- INTERMEDIATE CODE (IR) ---")
+                if args.show_optimized_ir:
+                    optimized_ir, _ = optimize_ir(ir_program)
+                    _print_ir(optimized_ir, "--- OPTIMIZED INTERMEDIATE CODE ---")
 
             if args.profile:
                 _print_profile(metrics)
@@ -291,9 +297,13 @@ def main() -> int:
             warning_count=len(semantic_result.warnings),
         )
 
-        if args.show_ir:
+        if args.show_ir or args.show_optimized_ir:
             ir_program = build_ir(program, semantic_result)
-            _print_ir(ir_program)
+            if args.show_ir:
+                _print_ir(ir_program, "--- INTERMEDIATE CODE (IR) ---")
+            if args.show_optimized_ir:
+                optimized_ir, _ = optimize_ir(ir_program)
+                _print_ir(optimized_ir, "--- OPTIMIZED INTERMEDIATE CODE ---")
 
         if args.profile:
             _print_profile(metrics)
