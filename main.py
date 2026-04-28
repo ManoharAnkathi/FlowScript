@@ -5,24 +5,15 @@ from pathlib import Path
 from codegen import generate_python
 from ir import build_ir
 from optimizer import optimize_ir
-from lexer import LexerError, Token, tokenize_file
-from parser import ParserError, Program, parse
-from semantic import SemanticError, SemanticResult, analyze_program
+from lexer import LexerError, tokenize_file
+from parser import ParserError, parse
+from semantic import SemanticError, analyze_program
 from ast_nodes import (
     LetStatement, ConstStatement, AssignStatement, PrintStatement,
     IfStatement, RepeatStatement, ForStatement, WhileStatement,
     FunctionDeclarationStatement, ReturnStatement, ContinueStatement, BreakStatement,
     NumberLiteral, Identifier, BinaryOp, ComparisonOp
 )
-
-
-class PhaseMetrics:
-    def __init__(self, duration_ms, token_count=None, statement_count=None, symbol_count=None, warning_count=None):
-        self.duration_ms = duration_ms
-        self.token_count = token_count
-        self.statement_count = statement_count
-        self.symbol_count = symbol_count
-        self.warning_count = warning_count
 
 
 def _format_token(token):
@@ -234,32 +225,6 @@ def _print_structured_asm(asm_code):
     for line in lines:
         if line.strip():
             print("  " + line)
-
-
-def _print_profile(metrics):
-    print("--- PROFILE ---")
-    total_ms = 0.0
-    for phase_name in ("tokens", "parse", "semantic"):
-        metric = metrics.get(phase_name)
-        if metric is None:
-            continue
-
-        total_ms += metric.duration_ms
-        extras = []
-        if metric.token_count is not None:
-            extras.append("tokens=" + str(metric.token_count))
-        if metric.statement_count is not None:
-            extras.append("statements=" + str(metric.statement_count))
-        if metric.symbol_count is not None:
-            extras.append("symbols=" + str(metric.symbol_count))
-        if metric.warning_count is not None:
-            extras.append("warnings=" + str(metric.warning_count))
-
-        extra_text = " " if not extras else " " + " ".join(extras)
-        ms_str = "%.3f" % metric.duration_ms
-        print(phase_name.ljust(8) + ms_str.rjust(9) + " ms" + extra_text)
-    ms_total_str = "%.3f" % total_ms
-    print("total   " + ms_total_str.rjust(10) + " ms")
 
 
 

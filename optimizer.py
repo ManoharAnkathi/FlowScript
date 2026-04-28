@@ -1,32 +1,27 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 import re
-from typing import Iterable
-
 from ir import IRProgram
 
 
-@dataclass(frozen=True)
 class OptimizationReport:
-    passes_run: int
-    changes_made: int
-    notes: list[str]
+    def __init__(self, passes_run, changes_made, notes):
+        self.passes_run = passes_run
+        self.changes_made = changes_made
+        self.notes = notes
 
 
 class Optimizer:
-    def __init__(self) -> None:
-        self.constants: dict[str, str] = {}
+    def __init__(self):
+        self.constants = {}
 
-    def optimize(self, ir_code: list[str]) -> list[str]:
+    def optimize(self, ir_code):
         constants = self._collect_constants(ir_code)
         propagated = self._propagate_constants(ir_code, constants)
         folded = self._fold_constants(propagated)
         cleaned = self._eliminate_dead_temps(folded)
         return cleaned
 
-    def _collect_constants(self, ir_code: Iterable[str]) -> dict[str, str]:
-        constants: dict[str, str] = {}
+    def _collect_constants(self, ir_code):
+        constants = {}
         for line in ir_code:
             target, expr = _parse_assignment(line)
             if target is None or expr is None:
@@ -38,37 +33,37 @@ class Optimizer:
             constants[target] = value
         return constants
 
-    def _propagate_constants(self, ir_code: list[str], constants: dict[str, str]) -> list[str]:
+    def _propagate_constants(self, ir_code, constants):
         return [self._propagate_line(line, constants) for line in ir_code]
 
-    def _propagate_line(self, line: str, constants: dict[str, str]) -> str:
+    def _propagate_line(self, line, constants):
         target, expr = _parse_assignment(line)
         if target is not None and expr is not None:
-            return f"{target} = {_replace_in_expr(expr, constants)}"
+            return target + " = " + _replace_in_expr(expr, constants)
 
         match = _IF_GOTO_RE.match(line)
         if match:
             left, op, right, label = match.groups()
             left = _replace_token(left, constants)
             right = _replace_token(right, constants)
-            return f"if {left} {op} {right} goto {label}"
+            return "if " + left + " " + op + " " + right + " goto " + label
 
         match = _PRINT_RE.match(line)
         if match:
             expr = match.group(1)
-            return f"print {_replace_in_expr(expr, constants)}"
+            return "print " + _replace_in_expr(expr, constants)
 
         match = _RETURN_RE.match(line)
         if match:
             expr = match.group(1)
             if expr is None:
                 return line
-            return f"return {_replace_in_expr(expr, constants)}"
+            return "return " + _replace_in_expr(expr, constants)
 
         return line
 
-    def _fold_constants(self, ir_code: list[str]) -> list[str]:
-        folded: list[str] = []
+    def _fold_constants(self, ir_code):
+        folded = []
         for line in ir_code:
             target, expr = _parse_assignment(line)
             if target is None or expr is None:
@@ -76,12 +71,12 @@ class Optimizer:
                 continue
 
             folded_expr = _try_fold_expr(expr)
-            folded.append(f"{target} = {folded_expr}")
+            folded.append(target + " = " + folded_expr)
         return folded
 
-    def _eliminate_dead_temps(self, ir_code: list[str]) -> list[str]:
+    def _eliminate_dead_temps(self, ir_code):
         used = _collect_used_names(ir_code)
-        cleaned: list[str] = []
+        cleaned = []
         for line in ir_code:
             target, expr = _parse_assignment(line)
             if target is not None and expr is not None and _TEMP_RE.fullmatch(target) and target not in used:
@@ -90,7 +85,7 @@ class Optimizer:
         return cleaned
 
 
-def optimize_ir(ir_program: IRProgram) -> tuple[IRProgram, OptimizationReport]:
+def optimize_ir(ir_program):
     optimizer = Optimizer()
     optimized_instructions = optimizer.optimize(ir_program.instructions)
     changes_made = sum(
@@ -119,31 +114,31 @@ _RETURN_RE = re.compile(r"^\s*return(?:\s+(.+?))?\s*$")
 _TEMP_RE = re.compile(r"t\d+")
 
 
-def _parse_assignment(line: str) -> tuple[str | None, str | None]:
+def _parse_assignment(line):
     match = _ASSIGN_RE.match(line)
     if not match:
         return None, None
     return match.group(1), match.group(2)
 
 
-def _parse_number_literal(text: str) -> str | None:
+def _parse_number_literal(text):
     stripped = text.strip()
     if re.fullmatch(r"-?\d+(?:\.\d+)?", stripped) is None:
         return None
     return stripped
 
 
-def _replace_in_expr(expr: str, constants: dict[str, str]) -> str:
+def _replace_in_expr(expr, constants):
     tokens = expr.split()
     replaced = [_replace_token(token, constants) for token in tokens]
     return " ".join(replaced)
 
 
-def _replace_token(token: str, constants: dict[str, str]) -> str:
+def _replace_token(token, constants):
     return constants.get(token, token)
 
 
-def _try_fold_expr(expr: str) -> str:
+def _try_fold_expr(expr):
     match = _BINOP_RE.match(expr)
     if not match:
         return expr
@@ -158,7 +153,7 @@ def _try_fold_expr(expr: str) -> str:
     return _format_number(result)
 
 
-def _apply_numeric_op(left: float, right: float, op: str) -> float:
+def _apply_numeric_op(left, right, op):
     if op == "+":
         return left + right
     if op == "-":
@@ -170,14 +165,14 @@ def _apply_numeric_op(left: float, right: float, op: str) -> float:
     raise ValueError("Unsupported operator")
 
 
-def _format_number(value: float) -> str:
+def _format_number(value):
     if value.is_integer():
         return str(int(value))
     return str(value)
 
 
-def _collect_used_names(ir_code: list[str]) -> set[str]:
-    used: set[str] = set()
+def _collect_used_names(ir_code):
+    used = set()
     for line in ir_code:
         target, expr = _parse_assignment(line)
         if target is not None and expr is not None:
@@ -197,8 +192,8 @@ def _collect_used_names(ir_code: list[str]) -> set[str]:
     return used
 
 
-def _extract_names(expr: str) -> set[str]:
-    names: set[str] = set()
+def _extract_names(expr):
+    names = set()
     for token in expr.split():
         if _parse_number_literal(token) is not None:
             continue

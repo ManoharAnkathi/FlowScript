@@ -1,18 +1,9 @@
-from __future__ import annotations
-
 import re
-from dataclasses import dataclass
 
 from ir import IRProgram
 
 
-@dataclass(frozen=True)
-class CodegenResult:
-    generated_python: str
-    execution_output: list[str]
-
-
-def generate_python(ir_program: IRProgram) -> str:
+def generate_python(ir_program):
     lines = []
     
     # Process each IR instruction
@@ -23,7 +14,7 @@ def generate_python(ir_program: IRProgram) -> str:
             
         # Label
         if instr.endswith(":"):
-            lines.append(f"{instr}")
+            lines.append(instr)
             continue
         
         # Assignment: x = value or x = y + z
@@ -34,7 +25,7 @@ def generate_python(ir_program: IRProgram) -> str:
             
             # Simple value (number or variable)
             if not any(op in expr for op in ["+", "-", "*", "/"]):
-                lines.append(f"MOV {var}, {expr}")
+                lines.append("MOV " + var + ", " + expr)
             else:
                 # Binary operation: a + b, a - b, etc
                 match_op = re.match(r"(\S+)\s*([\+\-\*/])\s*(\S+)", expr)
@@ -42,15 +33,15 @@ def generate_python(ir_program: IRProgram) -> str:
                     left, op, right = match_op.groups()
                     
                     # Load operands into registers
-                    lines.append(f"MOV R1, {left}")
-                    lines.append(f"MOV R2, {right}")
+                    lines.append("MOV R1, " + left)
+                    lines.append("MOV R2, " + right)
                     
                     # Perform operation
                     op_map = {"+": "ADD", "-": "SUB", "*": "MUL", "/": "DIV"}
-                    lines.append(f"{op_map[op]} R1, R2")
+                    lines.append(op_map[op] + " R1, R2")
                     
                     # Store result
-                    lines.append(f"MOV {var}, R1")
+                    lines.append("MOV " + var + ", R1")
             continue
         
         # Print statement
@@ -58,8 +49,8 @@ def generate_python(ir_program: IRProgram) -> str:
             match = re.match(r"print\s+(\S+)", instr)
             if match:
                 value = match.group(1)
-                lines.append(f"MOV R1, {value}")
-                lines.append(f"PRINT R1")
+                lines.append("MOV R1, " + value)
+                lines.append("PRINT R1")
             continue
         
         # If condition: if x > 5 goto L1
@@ -67,26 +58,26 @@ def generate_python(ir_program: IRProgram) -> str:
             match = re.match(r"if\s+(\S+)\s+([<>!=]=?|==|!=)\s+(\S+)\s+goto\s+(\S+)", instr)
             if match:
                 left, op, right, label = match.groups()
-                lines.append(f"MOV R1, {left}")
-                lines.append(f"MOV R2, {right}")
+                lines.append("MOV R1, " + left)
+                lines.append("MOV R2, " + right)
                 
                 jump_ops = {"<": "JL", "<=": "JLE", ">": "JG", ">=": "JGE", "==": "JE", "!=": "JNE"}
-                lines.append(f"CMP R1, R2")
-                lines.append(f"{jump_ops[op]} {label}")
+                lines.append("CMP R1, R2")
+                lines.append(jump_ops[op] + " " + label)
             continue
         
         # Unconditional jump
         if instr.startswith("goto"):
             match = re.match(r"goto\s+(\S+)", instr)
             if match:
-                lines.append(f"JMP {match.group(1)}")
+                lines.append("JMP " + match.group(1))
             continue
         
         # Function start
         if instr.startswith("func"):
             match = re.match(r"func\s+(\w+):", instr)
             if match:
-                lines.append(f"{match.group(1)}:")
+                lines.append(match.group(1) + ":")
             continue
         
         # Return
@@ -94,13 +85,13 @@ def generate_python(ir_program: IRProgram) -> str:
             match = re.match(r"return\s*(\S+)?", instr)
             if match and match.group(1):
                 val = match.group(1)
-                lines.append(f"MOV R1, {val}")
-            lines.append(f"RET")
+                lines.append("MOV R1, " + val)
+            lines.append("RET")
             continue
     
     return "\n".join(lines)
 
 
-def execute_ir(ir_program: IRProgram) -> list[str]:
+def execute_ir(ir_program):
     _ = ir_program
     return ["TODO: Assembly execution"]
