@@ -1,21 +1,17 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
 
 
-@dataclass(frozen=True)
 class Token:
-    type: str
-    value: str
-    line: int
-    column: int
+    def __init__(self, type, value, line, column):
+        self.type = type
+        self.value = value
+        self.line = line
+        self.column = column
 
 
 class LexerError(Exception):
-    def __init__(self, message: str, line: int, column: int) -> None:
-        super().__init__(f"{message} at line {line}, column {column}")
+    def __init__(self, message, line, column):
+        super(LexerError, self).__init__(message + " at line " + str(line) + ", column " + str(column))
         self.line = line
         self.column = column
 
@@ -28,9 +24,6 @@ KEYWORDS = {
     "return": "RETURN",
     "continue": "CONTINUE",
     "break": "BREAK",
-    "giveback": "RETURN",
-    "skip": "CONTINUE",
-    "stop": "BREAK",
 }
 
 SINGLE_CHAR_TOKENS = {
@@ -43,22 +36,21 @@ SINGLE_CHAR_TOKENS = {
     ")": "RPAREN",
 }
 
-
-def _is_identifier_start(ch: str) -> bool:
+def _is_identifier_start(ch):
     return ch.isalpha() or ch == "_"
 
 
-def _is_identifier_part(ch: str) -> bool:
+def _is_identifier_part(ch):
     return ch.isalnum() or ch == "_"
 
 
-def _is_token_boundary(text: str, end_index: int) -> bool:
+def _is_token_boundary(text, end_index):
     if end_index >= len(text):
         return True
     return not _is_identifier_part(text[end_index])
 
 
-def _scan_line(line: str, line_no: int) -> Iterator[Token]:
+def _scan_line(line, line_no):
     i = 0
     length = len(line)
 
@@ -182,27 +174,29 @@ def _scan_line(line: str, line_no: int) -> Iterator[Token]:
     yield Token("NEWLINE", "\\n", line_no, length + 1)
 
 
-def tokenize_file(file_path: str | Path) -> Iterator[Token]:
+def tokenize_file(file_path):
     path = Path(file_path)
     last_line = 0
 
     with path.open("r", encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, start=1):
             last_line = line_no
-            yield from _scan_line(line, line_no)
+            for token in _scan_line(line, line_no):
+                yield token
 
     eof_line = 1 if last_line == 0 else last_line + 1
     yield Token("EOF", "", eof_line, 1)
 
 
-def tokenize_text(source: str) -> Iterator[Token]:
+def tokenize_text(source):
     last_line = 0
     for line_no, line in enumerate(source.splitlines(keepends=True), start=1):
         last_line = line_no
-        yield from _scan_line(line, line_no)
+        for token in _scan_line(line, line_no):
+            yield token
     eof_line = 1 if last_line == 0 else last_line + 1
     yield Token("EOF", "", eof_line, 1)
 
 
-def collect_tokens(tokens: Iterable[Token]) -> list[Token]:
+def collect_tokens(tokens):
     return list(tokens)

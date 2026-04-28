@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from parser import (
+from ast_nodes import (
     AssignStatement,
     BinaryOp,
     BreakStatement,
@@ -20,7 +20,6 @@ from parser import (
     Program,
     RepeatStatement,
     ReturnStatement,
-    Statement,
     WhileStatement,
 )
 from semantic import SemanticResult

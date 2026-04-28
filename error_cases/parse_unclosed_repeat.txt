@@ -1,5 +1,0 @@
-@start
-let a := 2
-@repeat 3
-print => a
-@end
