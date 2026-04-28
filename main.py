@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ir import IRProgram, build_ir
 from lexer import LexerError, Token, tokenize_file
 from parser import ParserError, Program, parse
 from semantic import SemanticError, SemanticResult, analyze_program
@@ -139,6 +140,16 @@ def _print_profile(metrics: dict[str, PhaseMetrics]) -> None:
     print(f"total    {total_ms:>9.3f} ms")
 
 
+def _print_ir(ir_program: IRProgram) -> None:
+    print("--- IR ---")
+    if not ir_program.instructions:
+        print("(empty)")
+        return
+
+    for index, instruction in enumerate(ir_program.instructions, start=1):
+        print(f"{index:>4}: {instruction}")
+
+
 def _write_report_file(
     report_file: Path,
     input_file: Path,
@@ -186,6 +197,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", action="store_true", help="Show phase timing and counts")
     parser.add_argument("--strict-warnings", action="store_true", help="Treat semantic warnings as errors")
     parser.add_argument("--report-file", type=Path, help="Write compile report JSON to this path")
+    parser.add_argument("--show-ir", action="store_true", help="Print generated three-address IR")
     return parser
 
 
@@ -199,6 +211,10 @@ def main() -> int:
 
     if args.token_limit <= 0 or args.ast_limit <= 0 or args.symbol_limit <= 0:
         print("Error: limit values must be positive integers", file=sys.stderr)
+        return 1
+
+    if args.show_ir and args.phase in {"tokens", "parse"}:
+        print("Error: --show-ir requires phase 'semantic' or 'all'", file=sys.stderr)
         return 1
 
     metrics: dict[str, PhaseMetrics] = {}
@@ -243,6 +259,10 @@ def main() -> int:
                 warning_count=len(semantic_result.warnings),
             )
 
+            if args.show_ir:
+                ir_program = build_ir(program, semantic_result)
+                _print_ir(ir_program)
+
             if args.profile:
                 _print_profile(metrics)
             if args.report_file is not None:
@@ -270,6 +290,10 @@ def main() -> int:
             symbol_count=len(semantic_result.symbols),
             warning_count=len(semantic_result.warnings),
         )
+
+        if args.show_ir:
+            ir_program = build_ir(program, semantic_result)
+            _print_ir(ir_program)
 
         if args.profile:
             _print_profile(metrics)
