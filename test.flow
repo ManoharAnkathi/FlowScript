@@ -1,0 +1,14 @@
+@start
+
+let age := 25
+let threshold := 18
+let status := 0
+
+@if age > threshold
+    status := 1
+    print => status
+@endif
+
+print => age
+
+@end
